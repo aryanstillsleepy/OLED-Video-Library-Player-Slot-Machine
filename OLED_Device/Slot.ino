@@ -1,14 +1,14 @@
 #include <Preferences.h>
 
-#include "SlotAssets/SLOT_MACHINE_BLANK.h"
-#include "SlotAssets/CHERRY_SPRITE.h"
-#include "SlotAssets/LEMON_SPRITE.h"
-#include "SlotAssets/ORANGE_SPRITE.h"
-#include "SlotAssets/GRAPES_SPRITE.h"
-#include "SlotAssets/BELL_SPRITE.h"
-#include "SlotAssets/BAR_SPRITE.h"
-#include "SlotAssets/SEVEN_SPRITE.h"
-#include "SlotAssets/Jackpot_Win.h"
+#include "src/SlotAssets/slot_machine_blank.h"
+#include "src/SlotAssets/cherry_sprite.h"
+#include "src/SlotAssets/lemon_sprite.h"
+#include "src/SlotAssets/orange_sprite.h"
+#include "src/SlotAssets/grapes_sprite.h"
+#include "src/SlotAssets/bell_sprite.h"
+#include "src/SlotAssets/bar_sprite.h"
+#include "src/SlotAssets/seven_sprite.h"
+#include "src/SlotAssets/jackpot_win.h"
 
 Preferences preferences;
 

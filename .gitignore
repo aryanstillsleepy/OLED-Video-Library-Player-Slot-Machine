@@ -1,0 +1,9 @@
+# Arduino / arduino-cli build output
+build/
+OLED_Device/build/
+
+# Editor / OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
