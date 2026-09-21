@@ -8,6 +8,9 @@
 #define OLED_SDA 8
 #define OLED_SCL 9
 
+// Minimum time the startup screen stays visible
+#define SPLASH_MS 1000
+
 // ===============================
 // BUTTON
 // ===============================

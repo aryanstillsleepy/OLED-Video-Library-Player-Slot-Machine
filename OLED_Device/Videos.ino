@@ -33,6 +33,44 @@ int videoCount = 0;
 int selectedVideo = 0;
 int scrollOffset = 0;
 
+// Shown instead of the title after a failed open.
+// Cleared on the next library action.
+const char* libraryError = nullptr;
+
+// Names are drawn from x = 10 with a 6 px font and
+// must stop before the scroll bar at x = 125.
+const int MAX_NAME_CHARS = 19;
+
+
+// =====================================================
+// KEEP SELECTION VISIBLE
+// =====================================================
+
+void keepSelectionVisible() {
+
+  if (selectedVideo < scrollOffset) {
+    scrollOffset = selectedVideo;
+  }
+
+  if (selectedVideo >= scrollOffset + VISIBLE_VIDEOS) {
+    scrollOffset = selectedVideo - VISIBLE_VIDEOS + 1;
+  }
+
+  int maxScroll = videoCount - VISIBLE_VIDEOS;
+
+  if (maxScroll < 0) {
+    maxScroll = 0;
+  }
+
+  if (scrollOffset > maxScroll) {
+    scrollOffset = maxScroll;
+  }
+
+  if (scrollOffset < 0) {
+    scrollOffset = 0;
+  }
+}
+
 
 // =====================================================
 // DRAW LIBRARY
@@ -44,7 +82,11 @@ void drawLibrary() {
 
   oled.setFont(u8g2_font_6x10_tf);
 
-  oled.drawStr(0, 9, "VIDEO LIBRARY");
+  oled.drawStr(
+    0,
+    9,
+    libraryError ? libraryError : "VIDEO LIBRARY"
+  );
 
   if (videoCount == 0) {
 
@@ -75,8 +117,13 @@ void drawLibrary() {
 
     String displayName = videoNames[videoIndex];
 
-    if (displayName.endsWith(".bin")) {
-      displayName.remove(displayName.length() - 4);
+    // scanVideos() only keeps names ending in .bin
+    displayName.remove(displayName.length() - 4);
+
+    // Keep long names clear of the scroll bar
+    if ((int)displayName.length() > MAX_NAME_CHARS) {
+      displayName.remove(MAX_NAME_CHARS - 1);
+      displayName += '~';
     }
 
     oled.drawStr(
@@ -155,7 +202,11 @@ void scanVideos() {
 
       String name = file.name();
 
-      if (name.endsWith(".bin")) {
+      String lowerName = name;
+      lowerName.toLowerCase();
+
+      // FAT tools often store 8.3 names in upper case
+      if (lowerName.endsWith(".bin")) {
 
         if (name.startsWith("/")) {
           name.remove(0, 1);
@@ -191,19 +242,10 @@ void scanVideos() {
     selectedVideo = 0;
   }
 
-  if (videoCount <= VISIBLE_VIDEOS) {
+  // Files may have been removed since the last scan
+  keepSelectionVisible();
 
-    scrollOffset = 0;
-  }
-
-  else if (
-    scrollOffset >
-    videoCount - VISIBLE_VIDEOS
-  ) {
-
-    scrollOffset =
-      videoCount - VISIBLE_VIDEOS;
-  }
+  libraryError = nullptr;
 }
 
 
@@ -725,32 +767,11 @@ void handleVideoLibraryClick() {
   ) {
 
     selectedVideo = 0;
-    scrollOffset = 0;
   }
 
-  // Keep selected item visible
+  keepSelectionVisible();
 
-  if (
-    selectedVideo >=
-    scrollOffset +
-    VISIBLE_VIDEOS
-  ) {
-
-    scrollOffset++;
-  }
-
-  if (
-    selectedVideo <
-    scrollOffset
-  ) {
-
-    scrollOffset =
-      selectedVideo;
-  }
-
-  if (selectedVideo == 0) {
-    scrollOffset = 0;
-  }
+  libraryError = nullptr;
 
   drawLibrary();
 }
@@ -775,9 +796,19 @@ void openSelectedVideo() {
     )
   ) {
 
+    libraryError = nullptr;
+
     currentState =
       STATE_PLAYER;
+
+    return;
   }
+
+  // Tell the user, otherwise it looks like the
+  // button stopped working
+  libraryError = "! INVALID VIDEO";
+
+  drawLibrary();
 }
 
 

@@ -668,7 +668,8 @@ void drawJackpotBitmap() {
 
   oled.clearBuffer();
 
-  oled.drawXBM(
+  // PROGMEM bitmap, so use the P variant
+  oled.drawXBMP(
     0,
     0,
     128,
@@ -1827,10 +1828,13 @@ void setupSlot() {
   // ---------------------------------------------------
   // RANDOM
   // ---------------------------------------------------
-
-  randomSeed(
-    micros()
-  );
+  //
+  // Do NOT call randomSeed() here. On ESP32, random()
+  // uses the hardware RNG (esp_random()) by default,
+  // and randomSeed() switches it to the software rand()
+  // PRNG. Seeding with micros() at boot gave a nearly
+  // identical seed on every power-up, so spins followed
+  // very similar sequences after each reset.
 
 
   // ---------------------------------------------------

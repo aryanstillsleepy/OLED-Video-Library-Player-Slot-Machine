@@ -255,6 +255,15 @@ void processClicks() {
   }
 
 
+  // The button is down again: this press may become
+  // another click or a click + hold, so the sequence
+  // is not finished yet. Only the release restarts
+  // the double-click gap timer.
+  if (buttonIsPressed) {
+    return;
+  }
+
+
   // Still waiting for another click
   if ((millis() - lastClickTime) <= DOUBLE_CLICK_GAP_MS) {
     return;

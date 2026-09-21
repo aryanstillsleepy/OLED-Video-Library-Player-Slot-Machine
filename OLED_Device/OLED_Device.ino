@@ -47,8 +47,33 @@ void setup() {
   Wire.setClock(400000);
 
   oled.begin();
+
+  // =============================
+  // STARTUP SCREEN
+  // =============================
+  //
+  // Shown before the rest of the init so the screen is
+  // not blank while FFat mounts (or formats on first boot,
+  // which can take several seconds).
+
+  unsigned long splashStart = millis();
+
   oled.clearBuffer();
   oled.setFont(u8g2_font_6x10_tf);
+
+  oled.drawStr(
+    10,
+    30,
+    "OLED DEVICE"
+  );
+
+  oled.drawStr(
+    10,
+    45,
+    "Starting..."
+  );
+
+  oled.sendBuffer();
 
   // =============================
   // BUTTON
@@ -72,27 +97,12 @@ void setup() {
 
   setupSlot();
 
-  // =============================
-  // STARTUP SCREEN
-  // =============================
+  // Keep the splash up for at least SPLASH_MS in total
+  unsigned long splashElapsed = millis() - splashStart;
 
-  oled.clearBuffer();
-
-  oled.drawStr(
-    10,
-    30,
-    "OLED DEVICE"
-  );
-
-  oled.drawStr(
-    10,
-    45,
-    "Starting..."
-  );
-
-  oled.sendBuffer();
-
-  delay(1000);
+  if (splashElapsed < SPLASH_MS) {
+    delay(SPLASH_MS - splashElapsed);
+  }
 }
 
 // ===============================
