@@ -44,6 +44,18 @@ const int REEL3_X = 80;
 
 const int REEL_Y = 25;
 
+const int SYMBOL_SIZE = 16;
+
+// 8x8 tiles covering the three reel windows. While the
+// reels spin nothing else changes, so only these tiles
+// are sent (27 of 128), about 5x less I2C traffic.
+const uint8_t REEL_TILE_X = REEL1_X / 8;
+const uint8_t REEL_TILE_Y = REEL_Y / 8;
+const uint8_t REEL_TILE_W =
+  (REEL3_X + SYMBOL_SIZE - 1) / 8 - REEL_TILE_X + 1;
+const uint8_t REEL_TILE_H =
+  (REEL_Y + SYMBOL_SIZE - 1) / 8 - REEL_TILE_Y + 1;
+
 int reel1 = 0;
 int reel2 = 2;
 int reel3 = 4;
@@ -134,8 +146,13 @@ int celebrationFrame = 0;
 // =====================================================
 // OLED BITMAP
 // =====================================================
+//
+// Machine artwork already rendered in U8g2's frame
+// buffer layout (built once in setupSlot()), so a frame
+// starts with a 1 KB memcpy instead of drawXBM()
+// plotting all 8192 pixels one by one.
 
-uint8_t invertedBitmap[1024];
+uint8_t machineBackground[1024];
 
 void startCelebration();
 void updateCelebration();
@@ -350,37 +367,71 @@ void drawSymbol(
 // DRAW SLOT MACHINE
 // =====================================================
 
-void drawMachine() {
+void renderMachine(
+  int symbol1,
+  int symbol2,
+  int symbol3
+) {
 
-  oled.clearBuffer();
-
-  oled.drawXBM(
-    0,
-    0,
-    128,
-    64,
-    invertedBitmap
+  memcpy(
+    oled.getBufferPtr(),
+    machineBackground,
+    sizeof(machineBackground)
   );
 
   drawSymbol(
-    reel1,
+    symbol1,
     REEL1_X,
     REEL_Y
   );
 
   drawSymbol(
-    reel2,
+    symbol2,
     REEL2_X,
     REEL_Y
   );
 
   drawSymbol(
-    reel3,
+    symbol3,
     REEL3_X,
     REEL_Y
   );
+}
+
+
+void drawMachine() {
+
+  renderMachine(
+    reel1,
+    reel2,
+    reel3
+  );
 
   oled.sendBuffer();
+}
+
+
+// =====================================================
+// DRAW SPINNING REELS
+// =====================================================
+//
+// Only valid while the machine is on screen, which is
+// always the case during a spin.
+
+void drawSpinningReels() {
+
+  renderMachine(
+    reel1,
+    reel2,
+    reel3
+  );
+
+  oled.updateDisplayArea(
+    REEL_TILE_X,
+    REEL_TILE_Y,
+    REEL_TILE_W,
+    REEL_TILE_H
+  );
 }
 
 
@@ -550,32 +601,10 @@ void drawWinMessage() {
 
 void drawWinMachine() {
 
-  oled.clearBuffer();
-
-  oled.drawXBM(
-    0,
-    0,
-    128,
-    64,
-    invertedBitmap
-  );
-
-  drawSymbol(
+  renderMachine(
     result1,
-    REEL1_X,
-    REEL_Y
-  );
-
-  drawSymbol(
     result2,
-    REEL2_X,
-    REEL_Y
-  );
-
-  drawSymbol(
-    result3,
-    REEL3_X,
-    REEL_Y
+    result3
   );
 
   oled.sendBuffer();
@@ -628,32 +657,10 @@ void drawJackpotFrame1() {
 
 void drawJackpotFrame2() {
 
-  oled.clearBuffer();
-
-  oled.drawXBM(
-    0,
-    0,
-    128,
-    64,
-    invertedBitmap
-  );
-
-  drawSymbol(
+  renderMachine(
     6,
-    REEL1_X,
-    REEL_Y
-  );
-
-  drawSymbol(
     6,
-    REEL2_X,
-    REEL_Y
-  );
-
-  drawSymbol(
-    6,
-    REEL3_X,
-    REEL_Y
+    6
   );
 
   oled.sendBuffer();
@@ -1137,6 +1144,10 @@ void updateSpin() {
   unsigned long elapsed =
     now - spinStartTime;
 
+  // Redraw once at the end, even if the animation step
+  // and a reel stop both happen in this call
+  bool reelsChanged = false;
+
 
   // ---------------------------------------------------
   // REEL ANIMATION
@@ -1188,7 +1199,7 @@ void updateSpin() {
       }
     }
 
-    drawMachine();
+    reelsChanged = true;
   }
 
 
@@ -1211,7 +1222,7 @@ void updateSpin() {
 
     Serial.println(reel1);
 
-    drawMachine();
+    reelsChanged = true;
   }
 
 
@@ -1234,7 +1245,7 @@ void updateSpin() {
 
     Serial.println(reel2);
 
-    drawMachine();
+    reelsChanged = true;
   }
 
 
@@ -1257,7 +1268,12 @@ void updateSpin() {
 
     Serial.println(reel3);
 
-    drawMachine();
+    reelsChanged = true;
+  }
+
+
+  if (reelsChanged) {
+    drawSpinningReels();
   }
 
 
@@ -1777,13 +1793,16 @@ void setupSlot() {
   // LOAD MACHINE ARTWORK
   // ---------------------------------------------------
 
+  // Inverted XBM first, cleaned below, then converted
+  // to the frame buffer layout at the end.
+
   for (
     int i = 0;
     i < 1024;
     i++
   ) {
 
-    invertedBitmap[i] =
+    machineBackground[i] =
       ~pgm_read_byte(
         &Slot_machine_blank[i]
       );
@@ -1803,26 +1822,52 @@ void setupSlot() {
     int row =
       y * 16;
 
-    invertedBitmap[
+    machineBackground[
       row + 0
     ] =
       0x00;
 
-    invertedBitmap[
+    machineBackground[
       row + 1
     ] &=
       0xE0;
 
-    invertedBitmap[
+    machineBackground[
       row + 14
     ] &=
       0x07;
 
-    invertedBitmap[
+    machineBackground[
       row + 15
     ] =
       0x00;
   }
+
+
+  // ---------------------------------------------------
+  // CONVERT TO FRAME BUFFER LAYOUT
+  // ---------------------------------------------------
+  //
+  // Let U8g2 draw the XBM once, then keep a copy of the
+  // resulting buffer. Nothing is sent to the display.
+
+  oled.clearBuffer();
+
+  oled.drawXBM(
+    0,
+    0,
+    128,
+    64,
+    machineBackground
+  );
+
+  memcpy(
+    machineBackground,
+    oled.getBufferPtr(),
+    sizeof(machineBackground)
+  );
+
+  oled.clearBuffer();
 
 
   // ---------------------------------------------------

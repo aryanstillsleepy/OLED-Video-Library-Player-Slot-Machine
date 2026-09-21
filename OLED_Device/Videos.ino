@@ -7,12 +7,10 @@
 // VIDEO DATA
 // =====================================================
 
+// Frame read from the file, in the display's page layout
 uint8_t frameBuffer[FRAME_SIZE];
-uint8_t xbmBuffer[FRAME_SIZE];
 
 File videoFile;
-
-float videoFPS = 30.0;
 
 uint32_t frameCount = 0;
 uint32_t currentFrame = 0;
@@ -21,6 +19,22 @@ bool videoPlaying = false;
 bool videoPaused = false;
 
 uint32_t nextFrameTime = 0;
+
+// From the header's fps x 1000, computed once per video
+uint32_t frameIntervalUs = 33333;
+
+// The screen shows something other than the last
+// frame (e.g. the library), so send the next one whole
+bool fullRedrawNeeded = true;
+
+// 8x8 pixel tiles per page (a page is 8 pixel rows)
+const uint8_t FRAME_TILES_X = FRAME_WIDTH / 8;
+const uint8_t FRAME_PAGES = FRAME_HEIGHT / 8;
+
+// Unchanged tiles bridged between two changed ones in a
+// single transfer. Starting a new transfer costs about
+// as much as sending two tiles.
+const uint8_t TILE_MERGE_GAP = 2;
 
 
 // =====================================================
@@ -322,9 +336,6 @@ bool readVideoHeader(File &file) {
   uint32_t frameSize =
     readUInt32(&header[16]);
 
-  videoFPS =
-    (float)fpsMilli / 1000.0f;
-
   Serial.println();
   Serial.println("VIDEO HEADER");
   Serial.println("------------------------------");
@@ -336,7 +347,7 @@ bool readVideoHeader(File &file) {
 
   Serial.print("FPS: ");
   Serial.println(
-    videoFPS,
+    fpsMilli / 1000.0f,
     3
   );
 
@@ -374,7 +385,7 @@ bool readVideoHeader(File &file) {
   }
 
   if (
-    videoFPS <= 0 ||
+    fpsMilli == 0 ||
     frameCount == 0
   ) {
 
@@ -384,6 +395,9 @@ bool readVideoHeader(File &file) {
 
     return false;
   }
+
+  frameIntervalUs =
+    (uint32_t)(1000000000ULL / fpsMilli);
 
   uint64_t expectedSize =
     VIDEO_HEADER_SIZE +
@@ -427,85 +441,108 @@ bool readVideoHeader(File &file) {
 
 
 // =====================================================
-// CONVERT FRAME TO XBM
+// FRAME TILE CHANGED
 // =====================================================
 
-void convertFrameToXBM() {
+bool frameTileChanged(
+  const uint8_t *frameRow,
+  const uint8_t *screenRow,
+  uint8_t tile
+) {
 
-  memset(
-    xbmBuffer,
-    0,
-    FRAME_SIZE
-  );
-
-  for (
-    int page = 0;
-    page < 8;
-    page++
-  ) {
-
-    for (
-      int x = 0;
-      x < 128;
-      x++
-    ) {
-
-      uint8_t sourceByte =
-        frameBuffer[
-          page * 128 + x
-        ];
-
-      for (
-        int bit = 0;
-        bit < 8;
-        bit++
-      ) {
-
-        int y =
-          page * 8 + bit;
-
-        int pixelIndex =
-          y * 128 + x;
-
-        int byteIndex =
-          pixelIndex / 8;
-
-        int bitIndex =
-          pixelIndex % 8;
-
-        if (
-          sourceByte &
-          (1 << bit)
-        ) {
-
-          xbmBuffer[byteIndex] |=
-            (1 << bitIndex);
-        }
-      }
-    }
-  }
+  return memcmp(
+    frameRow + tile * 8,
+    screenRow + tile * 8,
+    8
+  ) != 0;
 }
 
 
 // =====================================================
-// RENDER FRAME
+// PRESENT FRAME
 // =====================================================
+//
+// Video frames use the same page layout as U8g2's frame
+// buffer, so they need no conversion.
+//
+// The U8g2 buffer always holds what is on screen, so
+// only the 8x8 tiles that differ from it are copied in
+// and sent. Static parts of a video cost nothing, and a
+// frame that changes everywhere costs the same as a
+// full sendBuffer().
 
-void renderFrame() {
+void presentFrame() {
 
-  convertFrameToXBM();
+  uint8_t *screen = oled.getBufferPtr();
 
-  oled.clearBuffer();
+  if (fullRedrawNeeded) {
 
-  oled.drawXBM(
-    0,
-    0,
-    FRAME_WIDTH,
-    FRAME_HEIGHT,
-    xbmBuffer
-  );
+    memcpy(
+      screen,
+      frameBuffer,
+      FRAME_SIZE
+    );
 
-  oled.sendBuffer();
+    oled.sendBuffer();
+
+    fullRedrawNeeded = false;
+
+    return;
+  }
+
+  for (
+    uint8_t page = 0;
+    page < FRAME_PAGES;
+    page++
+  ) {
+
+    const uint8_t *frameRow =
+      frameBuffer + page * FRAME_WIDTH;
+
+    uint8_t *screenRow =
+      screen + page * FRAME_WIDTH;
+
+    uint8_t tile = 0;
+
+    while (tile < FRAME_TILES_X) {
+
+      if (!frameTileChanged(frameRow, screenRow, tile)) {
+        tile++;
+        continue;
+      }
+
+      uint8_t first = tile;
+      uint8_t last = tile;
+
+      // Extend the run across short unchanged gaps
+      for (
+        tile++;
+        tile < FRAME_TILES_X &&
+        tile - last <= TILE_MERGE_GAP;
+        tile++
+      ) {
+
+        if (frameTileChanged(frameRow, screenRow, tile)) {
+          last = tile;
+        }
+      }
+
+      uint8_t count = last - first + 1;
+
+      memcpy(
+        screenRow + first * 8,
+        frameRow + first * 8,
+        count * 8
+      );
+
+      oled.updateDisplayArea(
+        first,
+        page,
+        count,
+        1
+      );
+    }
+  }
 }
 
 
@@ -575,6 +612,8 @@ bool openVideo(int index) {
   videoPlaying = true;
   videoPaused = false;
 
+  fullRedrawNeeded = true;
+
   nextFrameTime = micros();
 
   Serial.println(
@@ -603,8 +642,9 @@ void closeVideo() {
     );
   }
 
-  oled.clearBuffer();
-  oled.sendBuffer();
+  // No screen clear here: the caller draws the library
+  // right away, and a blank frame in between only costs
+  // a full transfer and flickers.
 }
 
 
@@ -650,12 +690,6 @@ void updateVideo() {
   }
 
   uint32_t now = micros();
-
-  uint32_t frameIntervalUs =
-    (uint32_t)(
-      1000000.0 /
-      videoFPS
-    );
 
   if (
     (int32_t)(
@@ -723,7 +757,7 @@ void updateVideo() {
   // DISPLAY FRAME
   // ===================================================
 
-  renderFrame();
+  presentFrame();
 
   currentFrame++;
 

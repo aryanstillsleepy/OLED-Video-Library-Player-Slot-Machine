@@ -100,6 +100,8 @@ void openHomeSelection() {
       currentState =
         STATE_MUSIC;
 
+      drawComingSoon("MUSIC");
+
       break;
 
 
@@ -109,6 +111,8 @@ void openHomeSelection() {
       currentState =
         STATE_MESSAGES;
 
+      drawComingSoon("MESSAGES");
+
       break;
 
 
@@ -117,6 +121,8 @@ void openHomeSelection() {
 
       currentState =
         STATE_SETTINGS;
+
+      drawComingSoon("SETTINGS");
 
       break;
 
@@ -140,101 +146,49 @@ void openHomeSelection() {
 
 void updateHome() {
 
-  static bool firstRun = true;
-
-  if (firstRun) {
-
-    drawHome();
-
-    firstRun = false;
-  }
-
-  // Button handling is connected
-  // through Button.ino.
+  // Event-driven: setup() draws the first screen and
+  // Button.ino redraws after each action.
 }
 
 
 // ===============================
-// MUSIC
+// COMING SOON SCREENS
 // ===============================
+//
+// Drawn once when opened, not every loop: resending an
+// identical frame keeps the I2C bus busy and slows down
+// button sampling.
+
+void drawComingSoon(const char* title) {
+
+  oled.clearBuffer();
+
+  oled.setFont(
+    u8g2_font_6x10_tf
+  );
+
+  oled.drawStr(
+    10,
+    30,
+    title
+  );
+
+  oled.drawStr(
+    10,
+    45,
+    "Coming soon"
+  );
+
+  oled.sendBuffer();
+}
 
 void updateMusic() {
-
-  oled.clearBuffer();
-
-  oled.setFont(
-    u8g2_font_6x10_tf
-  );
-
-  oled.drawStr(
-    10,
-    30,
-    "MUSIC"
-  );
-
-  oled.drawStr(
-    10,
-    45,
-    "Coming soon"
-  );
-
-  oled.sendBuffer();
 }
-
-
-// ===============================
-// MESSAGES
-// ===============================
 
 void updateMessages() {
-
-  oled.clearBuffer();
-
-  oled.setFont(
-    u8g2_font_6x10_tf
-  );
-
-  oled.drawStr(
-    10,
-    30,
-    "MESSAGES"
-  );
-
-  oled.drawStr(
-    10,
-    45,
-    "Coming soon"
-  );
-
-  oled.sendBuffer();
 }
 
-
-// ===============================
-// SETTINGS
-// ===============================
-
 void updateSettings() {
-
-  oled.clearBuffer();
-
-  oled.setFont(
-    u8g2_font_6x10_tf
-  );
-
-  oled.drawStr(
-    10,
-    30,
-    "SETTINGS"
-  );
-
-  oled.drawStr(
-    10,
-    45,
-    "Coming soon"
-  );
-
-  oled.sendBuffer();
 }
 
 

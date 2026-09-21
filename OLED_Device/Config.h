@@ -8,6 +8,12 @@
 #define OLED_SDA 8
 #define OLED_SCL 9
 
+// I2C clock for the display. The SH1106 datasheet only
+// specifies 400 kHz, but most modules run fine at 800 kHz,
+// which roughly halves the time to send a frame.
+// Set this back to 400000 if the display glitches.
+#define OLED_I2C_CLOCK_HZ 800000
+
 // Minimum time the startup screen stays visible
 #define SPLASH_MS 1000
 

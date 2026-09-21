@@ -39,6 +39,23 @@ every Arduino IDE / arduino-cli version copies them into the build.
 
 Pins and timings can be changed in `OLED_Device/Config.h`.
 
+The display runs its I2C bus at **800 kHz** (`OLED_I2C_CLOCK_HZ`). That is
+above the SH1106's rated 400 kHz but works on most modules and roughly halves
+the time per frame. If the picture glitches, set it back to `400000`.
+
+## Performance notes
+
+- Video frames are stored in the display's native page layout, so they are read
+  straight into U8g2's frame buffer with no per-pixel conversion.
+- Only the 8×8 tiles that changed since the previous frame are sent over I2C.
+  Static areas of a video cost nothing, and a frame that changes everywhere
+  costs the same as a full refresh.
+- A custom U8g2 I2C transport uses ESP32's 128-byte Wire buffer instead of
+  U8g2's AVR-sized 24-byte chunks: 24 I2C transactions per full frame instead
+  of 64.
+- The slot machine artwork is pre-rendered once, and only the reel area is sent
+  while the reels spin.
+
 ## Building
 
 1. Install the **ESP32 Arduino core** (Espressif) and the **U8g2** library.
