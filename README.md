@@ -12,17 +12,21 @@ ESP32 firmware for a 128×64 SH1106 OLED that uses a single push button to drive
 ```
 .
 ├── README.md
-└── OLED_Device/                 Arduino sketch folder (open OLED_Device.ino)
-    ├── OLED_Device.ino          setup(), loop(), app state machine
-    ├── Config.h                 pins, button timing, video constants
-    ├── Button.ino               debounced single/double/triple click, long press, click+hold
-    ├── Home.ino                 home menu + placeholder screens
-    ├── Videos.ino               video library + player
-    ├── Slot.ino                 slot machine game
-    └── src/SlotAssets/          bitmaps used by the slot machine
-        ├── slot_machine_blank.h   128×64 machine artwork
-        ├── jackpot_win.h          128×64 jackpot screen
-        └── *_sprite.h             16×16 reel symbols
+├── OLED_Device/                 Arduino sketch folder (open OLED_Device.ino)
+│   ├── OLED_Device.ino          setup(), loop(), app state machine, fast I2C transport
+│   ├── Config.h                 pins, I2C clock, button timing, video constants
+│   ├── Button.ino               debounced single/double/triple click, long press, click+hold
+│   ├── Home.ino                 home menu + placeholder screens
+│   ├── Videos.ino               video library + player
+│   ├── Slot.ino                 slot machine game
+│   └── src/SlotAssets/          bitmaps used by the slot machine
+│       ├── slot_machine_blank.h   128×64 machine artwork
+│       ├── jackpot_win.h          128×64 jackpot screen
+│       └── *_sprite.h             16×16 reel symbols
+└── test/                        host tests: run the firmware on a PC (see test/README.md)
+    ├── run_tests.py             builds and runs everything
+    ├── button_test.cpp          button gesture timing
+    └── sim/                     full-sketch simulator with an SH1106 display model
 ```
 
 The Arduino IDE requires the main `.ino` file to live in a folder with the same
@@ -68,6 +72,17 @@ With arduino-cli (example for an ESP32-S3):
 ```sh
 arduino-cli compile --fqbn esp32:esp32:esp32s3 OLED_Device
 ```
+
+## Tests
+
+```sh
+python test/run_tests.py
+```
+
+Runs the button logic and the whole sketch on your PC against the real U8g2
+library and a model of the SH1106 display. It checks every screen, video
+playback and the I2C traffic. Needs gcc/clang or `pip install ziglang`; see
+[test/README.md](test/README.md).
 
 ## Controls
 

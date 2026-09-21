@@ -7,3 +7,6 @@ OLED_Device/build/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Host test build cache (test/run_tests.py)
+test/.build/
